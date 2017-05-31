@@ -133,7 +133,7 @@ class Lock(object):
     A Lock context manager implemented via redis SETNX/BLPOP.
     """
 
-    def __init__(self, redis_client, name, expire=None, id=None, auto_renewal=False, strict=True):
+    def __init__(self, redis_client, name, expire=None, id=None, auto_renewal=False, strict=True, blocking=True):
         """
         :param redis_client:
             An instance of :class:`~StrictRedis`.
@@ -158,7 +158,10 @@ class Lock(object):
             time, subclass Lock, call ``super().__init__()`` then set
             ``self._lock_renewal_interval`` to your desired interval.
         :param strict:
-            If set ``True`` then the ``redis_client`` needs to be an instance of ``redis.StrictRedis``.
+            If set ``True`` then the ``redis_client`` needs to
+            be an instance of ``redis.StrictRedis``.
+        :param blocking:
+            If set ``False`` then will return immediately if unable to acquire lock
         """
         if strict and not isinstance(redis_client, StrictRedis):
             raise ValueError("redis_client must be instance of StrictRedis. "
@@ -180,6 +183,7 @@ class Lock(object):
                                        if auto_renewal
                                        else None)
         self._lock_renewal_thread = None
+        self.blocking = blocking
 
     @property
     def _held(self):
@@ -319,8 +323,8 @@ class Lock(object):
         logger.debug("Lock refresher has stopped")
 
     def __enter__(self):
-        acquired = self.acquire(blocking=True)
-        assert acquired, "Lock wasn't acquired, but blocking=True"
+        acquired = self.acquire(blocking=self.blocking)
+        assert acquired, "Lock wasn't acquired, but blocking=%s" % self.blocking
         return self
 
     def __exit__(self, exc_type=None, exc_value=None, traceback=None):
